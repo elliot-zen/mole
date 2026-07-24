@@ -1,0 +1,11 @@
+services:
+  mole:
+    image: mole:latest
+    container_name: mole
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./certs:/app/certs:ro

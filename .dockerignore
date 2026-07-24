@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.env
+certs
+*.tar.gz
+deploy.sh
+start.sh
+stop.sh
+restart.sh
+mole.log
+mole.pid

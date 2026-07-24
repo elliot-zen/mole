@@ -24,6 +24,23 @@ const app = new App({
   webhooks: { secret: webhookSecret },
 });
 
+let appSlug: string | undefined;
+
+async function getAppSlug(): Promise<string> {
+  if (appSlug) return appSlug;
+  const { data } = await app.octokit.request("GET /app");
+  if (!data?.slug) {
+    throw new Error("Failed to fetch app slug");
+  }
+  appSlug = data.slug;
+  return appSlug;
+}
+
+function isMentioned(text: string, slug: string): boolean {
+  const mentionPattern = new RegExp(`@${slug}(\\[bot\\])?\\b`, "i");
+  return mentionPattern.test(text);
+}
+
 app.webhooks.on("ping", async ({ payload }) => {
   console.log(`[ping] ${payload.zen ?? ""}`);
 });
@@ -38,6 +55,22 @@ app.webhooks.on("issues.opened", async ({ octokit, payload }) => {
   console.log(
     `[issues.opened] ${payload.repository.full_name}#${payload.issue.number} "${payload.issue.title}" by ${payload.issue.user?.login}`
   );
+
+  const slug = await getAppSlug();
+  const body = payload.issue.body ?? "";
+  if (isMentioned(body, slug)) {
+    await octokit.request(
+      "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
+      {
+        owner: payload.repository.owner.login,
+        repo: payload.repository.name,
+        issue_number: payload.issue.number,
+        body: `@${payload.issue.user?.login} 收到你的 @ 了！`,
+      }
+    );
+    return;
+  }
+
   await octokit.request(
     "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
     {
@@ -45,6 +78,30 @@ app.webhooks.on("issues.opened", async ({ octokit, payload }) => {
       repo: payload.repository.name,
       issue_number: payload.issue.number,
       body: "Thanks for opening this issue!",
+    }
+  );
+});
+
+app.webhooks.on("issue_comment.created", async ({ octokit, payload }) => {
+  const slug = await getAppSlug();
+  const commentBody = payload.comment.body;
+  const commenter = payload.comment.user?.login;
+
+  if (!isMentioned(commentBody, slug)) {
+    return;
+  }
+
+  console.log(
+    `[issue_comment.created] mentioned by ${commenter} in ${payload.repository.full_name}#${payload.issue.number}`
+  );
+
+  await octokit.request(
+    "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
+    {
+      owner: payload.repository.owner.login,
+      repo: payload.repository.name,
+      issue_number: payload.issue.number,
+      body: `@${commenter} 收到你的 @ 了！`,
     }
   );
 });
