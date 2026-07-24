@@ -1,102 +1,83 @@
 # mole
 
-一个基于 [@octokit/app](https://github.com/octokit/app.js) 的 GitHub App Webhook 服务（TypeScript）。
+[中文文档](docs/README.zh-CN.md)
 
-## 功能
+A GitHub App webhook server built with [@octokit/app](https://github.com/octokit/app.js) (TypeScript).
 
-- 接收并校验 GitHub Webhook（`/api/github/webhooks`）
-- 内置事件示例：
-  - `ping`
-  - `installation.created`
-  - `issues.opened`（自动回复评论）
-- 健康检查接口：`GET /healthz`
+## Features
 
-## 环境变量
+- Receives and verifies GitHub webhooks at `/api/github/webhooks`
+- Auto-replies when the app is @mentioned in issues or comments
+- Built-in event handlers: `ping`, `installation.created`, `issues.opened`, `issue_comment.created`
+- Health check endpoint: `GET /healthz`
+- Dockerized deployment
 
-复制 `.env.example` 为 `.env` 并填写：
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in:
 
 ```bash
 GITHUB_APP_ID=1234567
-GITHUB_WEBHOOK_SECRET=你的WebhookSecret
-GITHUB_PRIVATE_KEY_PATH=./github-app.private-key.pem
+GITHUB_WEBHOOK_SECRET=your-webhook-secret
+GITHUB_PRIVATE_KEY_PATH=./certs/github-app.private-key.pem
 PORT=3000
+
+DEPLOY_HOST=your-server-ip
+DEPLOY_USER=root
+DEPLOY_DIR=~/workspace/mole
 ```
 
-把 GitHub App 的私钥文件（`*.private-key.pem`）放到 `GITHUB_PRIVATE_KEY_PATH` 指定的位置。
+Place the GitHub App private key (`*.private-key.pem`) in the `certs/` directory.
 
-GitHub App 后台的 Webhook URL 配置为：
+Configure the webhook URL in your GitHub App settings:
 
 ```
-https://<你的域名>/api/github/webhooks
+https://<your-domain>/api/github/webhooks
 ```
 
-## 本地开发
+## Development
 
 ```bash
 npm install
-npm run dev        # tsx 直接运行，支持 TypeScript
+npm run dev        # run with tsx, TypeScript supported
+npm run typecheck  # type check
 ```
 
-本地调试 Webhook 可使用 [smee.io](https://smee.io) 转发。
+Use [smee.io](https://smee.io) to forward webhooks for local debugging.
 
-## 构建
+## Deployment
+
+Docker-based deployment via `deploy.sh`:
 
 ```bash
-npm run build      # 输出到 dist/
-npm start          # 运行 dist/index.js
+./deploy.sh
 ```
 
-## 打包部署
+The script will:
 
-在本地（或 CI）构建并裁剪依赖后打包：
+1. Build the Docker image locally
+2. Transfer the image to the remote server via `docker save | ssh docker load`
+3. Sync `docker-compose.yml`, `.env`, and `certs/` via rsync
+4. Restart the container with `docker compose up -d`
+
+Server operations:
 
 ```bash
-npm ci
-npm run build
-npm prune --omit=dev
-
-tar czf mole.tar.gz \
-  dist node_modules package.json package-lock.json \
-  .env github-app.private-key.pem
+cd ~/workspace/mole
+docker compose up -d      # start
+docker compose down       # stop
+docker compose logs -f    # logs
+docker compose restart    # restart
 ```
 
-> 注意：`.env` 和私钥文件包含敏感信息，请确认目标服务器可信，或使用密钥管理服务替代。
-
-上传到远程服务器后：
-
-```bash
-tar xzf mole.tar.gz
-cd mole   # 按实际解压目录
-node dist/index.js
-```
-
-### 使用 systemd 常驻运行（可选）
-
-`/etc/systemd/system/mole.service`：
-
-```ini
-[Unit]
-Description=mole GitHub App
-After=network.target
-
-[Service]
-WorkingDirectory=/opt/mole
-ExecStart=/usr/bin/node dist/index.js
-Restart=always
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable --now mole
-```
-
-## 项目结构
+## Project Structure
 
 ```
-src/index.ts    # App 入口：环境变量、事件注册、HTTP 服务
-dist/           # 构建产物
-.env            # 环境变量（不提交）
+src/index.ts         # App entry: env, event handlers, HTTP server
+Dockerfile           # Multi-stage build
+docker-compose.yml   # Container orchestration
+deploy.sh            # One-click deployment script
+certs/               # GitHub App private keys (not committed)
+.env                 # Environment variables (not committed)
+docs/                # Documentation in other languages
 ```
