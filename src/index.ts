@@ -106,6 +106,40 @@ app.webhooks.on("issue_comment.created", async ({ octokit, payload }) => {
   );
 });
 
+app.webhooks.on("issues.labeled", async ({ octokit, payload }) => {
+  const label = payload.label?.name;
+  const actor = payload.sender.login;
+  console.log(
+    `[issues.labeled] ${payload.repository.full_name}#${payload.issue.number} "${label}" by ${actor}`
+  );
+  await octokit.request(
+    "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
+    {
+      owner: payload.repository.owner.login,
+      repo: payload.repository.name,
+      issue_number: payload.issue.number,
+      body: `@${actor} 你添加了 \`${label}\``,
+    }
+  );
+});
+
+app.webhooks.on("issues.unlabeled", async ({ octokit, payload }) => {
+  const label = payload.label?.name;
+  const actor = payload.sender.login;
+  console.log(
+    `[issues.unlabeled] ${payload.repository.full_name}#${payload.issue.number} "${label}" by ${actor}`
+  );
+  await octokit.request(
+    "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
+    {
+      owner: payload.repository.owner.login,
+      repo: payload.repository.name,
+      issue_number: payload.issue.number,
+      body: `@${actor} 你移除了 \`${label}\``,
+    }
+  );
+});
+
 app.webhooks.onError((error) => {
   console.error(`[webhook error] ${error.name}: ${error.message}`);
 });
